@@ -260,16 +260,100 @@ paths:
   #   aucun itinéraire composé. Sans lancer direct ce jour-là, la liste est vide.
   #   Opération PUBLIQUE.
 
+  /trips/search:
+    post:
+      tags: [Découverte]
+      operationId: searchTrips
+      summary: Rechercher un lancer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [departureCityId, arrivalCityId, date, passengers]
+              properties:
+                departureCityId:
+                  type: string
+                  format: uuid
+                arrivalCityId:
+                  type: string
+                  format: uuid
+                date:
+                  type: string
+                  format: date
+                passengers:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Liste des lancers correspondants, éventuellement vide.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TripSummary'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+
   # GET /trips/{id}
   #   Consulter le détail d'un lancer. Le détail porte ce qu'une liste de
   #   résultats n'a aucune raison de transporter pour chacune de ses lignes.
   #   Opération PUBLIQUE.
+
+  /trips/{id}:
+    get:
+      tags: [Découverte]
+      operationId: getTrip
+      summary: Consulter le détail d'un lancer
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détail du lancer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripDetail'
+        '404': { $ref: '#/components/responses/NotFound' }
+
 
   # ---- Panier (authentifié) ------------------------------------------------
 
   # POST /carts
   #   Ouvrir un panier vide. C'est ici que la connexion devient nécessaire :
   #   la découverte est libre, la réservation est nominative.
+
+  /carts:
+    post:
+      tags: [Panier]
+      operationId: createCart
+      summary: Ouvrir un panier
+      responses:
+        '201':
+          description: Panier vide créé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Le voyageur possède déjà un panier actif.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
 
   # GET /carts
   #   Récupérer le panier actif du voyageur connecté. Un voyageur n'a qu'un
@@ -542,10 +626,51 @@ components:
     #   Un lancer tel qu'il apparaît dans une liste de résultats : de quoi
     #   choisir, pas de quoi préparer son voyage.
 
+      TripSummary:
+      type: object
+      required: [id, departureCity, arrivalCity, departureAt, durationMinutes, price]
+      properties:
+        id:
+          type: string
+          format: uuid
+        departureCity:
+          $ref: '#/components/schemas/City'
+        arrivalCity:
+          $ref: '#/components/schemas/City'
+        departureAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          format: double
+          minimum: 0
+
+
     # TripDetail
     #   Le même lancer, consulté seul. Il ajoute ce dont on a besoin une fois
     #   qu'on l'a choisi — notamment la franchise de masse, qui n'est pas ici
     #   une limite commerciale mais balistique.
+
+      TripDetail:
+      allOf:
+        - $ref: '#/components/schemas/TripSummary'
+        - type: object
+          required: [baggageAllowanceKg, catapultModel, boardingInstructions]
+          properties:
+            baggageAllowanceKg:
+              type: number
+              format: double
+              minimum: 0
+              description: Franchise de masse en kilogrammes.
+            catapultModel:
+              type: string
+              description: Modèle de la catapulte.
+            boardingInstructions:
+              type: string
+              description: Consignes d'embarquement.
 
     # Cart
     #   Un panier de réservation. Il connaît son état, ses lignes, et son total.
